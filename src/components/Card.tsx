@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { motion } from "framer-motion";
 
 interface CardProps {
@@ -14,10 +15,13 @@ export default function Card({ name, photo, quote }: CardProps) {
       animate={{ opacity: 1, scale: 1 }}
       transition={{ duration: 0.8 }}
     >
-      <img
+      <Image
         src={photo}
         alt={name}
-        className="w-24 h-24 rounded-full mb-2 object-cover border-4 border-white"
+        width={100}
+        height={100}
+        className="rounded-full mb-2 object-cover border-4 border-white"
+        priority
       />
       <p className="text-lg font-bold">{name}</p>
       {quote && <p className="italic text-sm mt-2">"{quote}"</p>}
