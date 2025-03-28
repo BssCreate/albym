@@ -1,5 +1,6 @@
 {
   "rewrites": [
+    { "source": "/", "destination": "/home.html" },
     { "source": "/menu", "destination": "/menu.html" },
     { "source": "/home", "destination": "/home.html" },
     { "source": "/edit", "destination": "/edit.html" }
