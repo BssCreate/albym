@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Меню ресторана</title>
+    <style>
+
+        * {
+            -webkit-tap-highlight-color: transparent; /* Убираем синий фон на мобилках */
+        }
+
+        /* 3. Отключить выделение текста и изображений при долгом нажатии */
+        * {
+            user-select: none;          /* Отключаем выделение текста */
+            -webkit-user-select: none;  /* Для Safari */
+            -ms-user-select: none;      /* Для старых IE */
+            -moz-user-select: none;     /* Для Firefox */
+        }
+
+        /* Дополнительно: запретить перетаскивание изображений */
+        img {
+            pointer-events: none;       /* Отключаем события мыши */
+            -webkit-user-drag: none;    /* Отключаем перетаскивание изображений */
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { display: flex; height: 100vh; font-family: Arial, sans-serif; }
+        .sidebar {
+            width: 20%; background-color: #f4f4f4; padding: 20px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+        }
+        .sidebar h2 { margin-bottom: 15px; }
+        .sidebar ul { list-style: none; }
+        .sidebar li {
+            padding: 10px; margin-bottom: 10px;
+            background-color: #fff; border-radius: 10px;
+            cursor: pointer; transition: background 0.2s;
+        }
+        .sidebar li:hover { background-color: #f0f0f0; }
+        .content { flex: 1; padding: 20px; overflow-y: auto; }
+        .dish {
+            margin-bottom: 20px; padding: 15px;
+            border: 1px solid #ddd; border-radius: 10px;
+            display: flex; gap: 15px;
+            cursor: pointer;
+        }
+        .dish img {
+            width: 100px; height: 100px; border-radius: 10px;
+            object-fit: cover;
+        }
+        .dish-info { flex: 1; }
+        .dish-name { font-size: 20px; font-weight: bold; }
+        .dish-description { margin: 10px 0; }
+        .dish-meta { font-size: 14px; color: #555; }
+        
+        /* Модальное окно */
+        .modal { 
+            position: fixed; top: 0; left: 0; 
+            width: 100%; height: 100%; 
+            background: rgba(0, 0, 0, 0.5); 
+            display: none; justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background: white; padding: 20px;
+            border-radius: 10px; width: 400px;
+        }
+        .modal-content img { width: 100%; }
+        .modal-footer { display: flex; justify-content: space-between; margin-top: 20px; }
+        .btn { padding: 10px 20px; border-radius: 5px; cursor: pointer; }
+        .btn-red { background-color: red; color: white; }
+        .btn-green { background-color: green; color: white; }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h2>Категории</h2>
+        <ul id="categories"></ul>
+    </div>
+    <div class="content" id="content">
+        <h1 id="category-title"></h1>
+        <div id="dishes"></div>
+    </div>
+
+    <!-- Модальное окно -->
+    <div class="modal" id="dishModal">
+        <div class="modal-content">
+            <h2>Добавить в заказ?</h2>
+            <img id="modal-img" src="" alt="Dish image">
+            <h3 id="modal-name"></h3>
+            <p id="modal-description"></p>
+            
+            <!-- Дополнительные опции для пиццы -->
+            <div id="pizza-options" style="display: none;">
+                <label for="size">Размер:</label>
+                <select id="size" onchange="updateModalPriceAndWeight()">
+                    <option value="30">30 см</option>
+                    <option value="40">40 см (+300 ₽)</option>
+                </select>
+                <br>
+                <label for="crust">Сырный бортик:</label>
+                <select id="crust" onchange="updateModalPriceAndWeight()">
+                    <option value="no">Нет</option>
+                    <option value="yes">Да (+50 ₽)</option>
+                </select>
+            </div>
+
+            <!-- Блок для динамического отображения веса и цены -->
+            <div id="modal-weight-price">
+                <p id="modal-weight-price-text">Вес: г • Цена: ₽</p>
+            </div>
+
+            <div id="final-price"></div>
+            <div class="modal-footer">
+                <button class="btn btn-green" id="addToOrder" onclick="addToOrder()">Добавить</button>
+                <button class="btn btn-red" onclick="closeModal()">Отменить</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        let currentDish = null; // Глобальная переменная для текущего блюда
+        let foodsData = {};
+
+        // Функция получения данных
+        async function fetchFoods() {
+            try {
+                const response = await fetch('/foods.json');
+                if (!response.ok) {
+                    throw new Error(`Ошибка загрузки данных: ${response.status}`);
+                }
+                const data = await response.json();
+                
+                // Проверяем, что все блюда содержат необходимые поля
+                for (const category in data) {
+                    data[category] = data[category].filter(dish => dish.price && dish.weight);
+                }
+
+                console.log('📥 Полученные данные:', data);
+                return data;
+            } catch (error) {
+                console.error('❌ Ошибка при получении foods.json:', error);
+                return {}; // Возвращаем пустой объект, чтобы избежать ошибок
+            }
+        }
+
+
+
+        function renderCategories() {
+            const categoriesList = document.getElementById('categories');
+            if (!foodsData || Object.keys(foodsData).length === 0) {
+                console.warn('⚠️ Нет данных для отображения категорий.');
+                return;
+            }
+
+            categoriesList.innerHTML = Object.keys(foodsData).map(cat => 
+                `<li onclick="renderDishes('${cat}')" id="category-${cat}">
+                    <span>${cat}</span>
+                </li>`
+            ).join('');
+
+            console.log('📦 Категории успешно отрисованы.');
+        }
+
+        function renderDishes(category) {
+            // Убедитесь, что категория установлена перед рендерингом
+            currentCategory = category;
+
+            if (!foodsData[currentCategory]) {
+                console.warn(`⚠️ Категория "${category}" не найдена.`);
+                return;
+            }
+
+            const dishes = foodsData[currentCategory] || [];
+            const dishesContainer = document.getElementById('dishes');
+            document.getElementById('category-title').textContent = category;
+
+            dishesContainer.innerHTML = dishes.map(dish => `
+                <div class="dish" onclick="openModal('${dish.name}')">
+                    <img src="${dish.image}" alt="${dish.name}" width="100">
+                    <div>
+                        <strong>${dish.name}</strong><br>
+                        ${dish.description !== 'none' ? dish.description + "<br>" : ''}
+                        <small>${dish.weight} г. • ${dish.price} ₽</small>
+                    </div>
+                </div>
+            `).join('');
+
+            console.log(`🍽️ Отображаем блюда для категории "${category}"`);
+        }
+
+
+        // Открытие модального окна
+        function openModal(dishName) {
+            console.log('Попытка найти блюдо:', dishName);
+            console.log('Текущая категория:', currentCategory);
+
+            // Находим блюдо в данных по текущей категории
+            const dish = foodsData[currentCategory]?.find(d => d.name === dishName);
+
+            if (dish) {
+                currentDish = dish; // Сохраняем текущее блюдо
+                document.getElementById('modal-img').src = dish.image;
+                document.getElementById('modal-name').textContent = dish.name;
+                document.getElementById('modal-description').textContent = dish.description !== 'none' ? dish.description : '';
+
+                // Устанавливаем базовые значения
+                basePrice = parseFloat(dish.price);
+                baseWeight = parseInt(dish.weight);
+
+                console.log('✔️ Открыто блюдо:', dish.name);
+                console.log('Базовая цена:', basePrice, 'Базовый вес:', baseWeight);
+
+                if (currentCategory === 'Пицца') {
+                    console.log('🍕 Это пицца, показываем дополнительные опции');
+                    document.getElementById('pizza-options').style.display = 'block';
+                    document.getElementById('size').value = 30;
+                    document.getElementById('crust').value = 'no';
+                } else {
+                    console.log('🥗 Это не пицца, скрываем дополнительные опции');
+                    document.getElementById('pizza-options').style.display = 'none';
+                }
+
+                // Обновляем модальное окно
+                updateModalPriceAndWeight(); // Используем базовые значения из currentDish
+                document.getElementById('dishModal').style.display = 'flex';
+            } else {
+                console.error('❌ Блюдо не найдено:', dishName);
+            }
+        }
+
+
+
+        // Функция для рендеринга карточек блюд
+        function createDishCard(dish) {
+            return `
+                <div class="dish" onclick="openModal('${dish.name}')">
+                    <img src="${dish.image}" alt="${dish.name}">
+                    <div class="dish-info">
+                        <div class="dish-name">${dish.name}</div>
+                        ${dish.description !== 'none' ? `<div class="dish-description">${dish.description}</div>` : ''}
+                        <div class="dish-meta">${dish.weight} г. • ${dish.price} ₽</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Закрытие модального окна
+        function closeModal() {
+            document.getElementById('dishModal').style.display = 'none';
+        }
+
+        // Обновление цены и веса в модальном окне
+        function updateModalPriceAndWeight() {
+            if (!currentDish) {
+                console.error('❌ Ошибка: объект блюда не был передан в функцию');
+                return;
+            }
+
+            let finalPrice = parseFloat(currentDish.price);
+            let finalWeight = parseInt(currentDish.weight);
+
+            // Проверка на NaN
+            if (isNaN(finalPrice) || isNaN(finalWeight)) {
+                console.error('⚠️ Ошибка: цена или вес не является числом.');
+                return;
+            }
+
+            // Если это пицца, применяем доп. опции
+            if (currentCategory === 'Пицца') {
+                const size = document.getElementById('size').value;
+                const crust = document.getElementById('crust').value;
+
+                // Доплата за размер 40 см
+                if (size === "40") {
+                    finalPrice += 300;
+                    finalWeight += 350;
+                }
+
+                // Доплата за сырный бортик
+                if (crust === "yes") {
+                    finalPrice += 50;
+                    finalWeight += 100;
+                }
+            }
+
+            // Преобразуем вес в кг, если он больше 999 г
+            let weightText = finalWeight + " г";
+            if (finalWeight >= 1000) {
+                weightText = (finalWeight / 1000).toFixed(1) + " кг";
+            }
+
+            // Обновляем отображение цены и веса в одной строке
+            const weightPriceText = `Вес: ${weightText} • Цена: ${finalPrice} ₽`;
+            document.getElementById('modal-weight-price-text').textContent = weightPriceText;
+        }
+
+
+
+        // Клик по кнопке "Добавить в заказ"
+        function addToOrder() {
+            alert('Функция в разработке');
+        }
+
+
+        let currentCategory = '';
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                foodsData = await fetchFoods();
+                renderCategories();
+                const categories = Object.keys(foodsData);
+                if (categories.length > 0) {
+                    renderDishes(categories[0]);
+                }
+            } catch (error) {
+                console.error('🚫 Ошибка при инициализации страницы:', error);
+            }
+        });
+
+    </script>
+</body>
+</html>
