@@ -14,7 +14,7 @@ module.exports = async (req, res) => {
   const sheetName = sites[site];
 
   if (!sheetName) {
-    return res.status(404).send('Неизвестный сайт');
+    return res.status(404).json({ error: 'Неизвестный сайт' });
   }
 
   try {
@@ -39,7 +39,7 @@ module.exports = async (req, res) => {
 
     res.status(200).json(response.data.values);
   } catch (err) {
-    console.error(err);
-    res.status(500).send('Ошибка при получении данных');
+    console.error('Ошибка при получении данных:', err);
+    res.status(500).json({ error: 'Ошибка при получении данных' });
   }
 };
