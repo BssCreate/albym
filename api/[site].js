@@ -1,4 +1,4 @@
-const { google } = require('google-auth-library');
+const { google } = require('googleapis');
 const axios = require('axios');
 const key = require('../service_account.json');
 
@@ -19,23 +19,22 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const client = new google.auth.JWT(
-      key.client_email,
-      null,
-      key.private_key,
-      ['https://www.googleapis.com/auth/spreadsheets.readonly']
-    );
+    // Инициализация GoogleAuth
+    const auth = new google.auth.GoogleAuth({
+      credentials: key,
+      scopes: ['https://www.googleapis.com/auth/spreadsheets.readonly'],
+    });
 
-    await client.authorize();
-    const token = await client.getAccessToken();
+    // Получаем авторизованный клиент
+    const client = await auth.getClient();
+
+    const sheets = google.sheets({ version: 'v4', auth: client });
 
     const range = `${sheetName}!A1:Z100`;
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`;
 
-    const response = await axios.get(url, {
-      headers: {
-        Authorization: `Bearer ${token.token}`,
-      },
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range,
     });
 
     res.status(200).json(response.data.values);
