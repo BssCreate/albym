@@ -32,6 +32,9 @@ module.exports = async (req, res) => {
 
     const range = `${sheetName}!A1:Z100`;
 
+    // Логирование запроса перед выполнением
+    console.log(`Запрос к Google Sheets для ${sheetName}`);
+
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId,
       range,
@@ -39,7 +42,8 @@ module.exports = async (req, res) => {
 
     res.status(200).json(response.data.values);
   } catch (err) {
-    console.error('Ошибка при получении данных:', err.message || err);  // Логируем ошибку
+    console.error('Ошибка при получении данных:', err);  // Логируем ошибку
+    // Убедимся, что возвращаем корректный JSON, даже если произошла ошибка
     res.status(500).json({ error: 'Ошибка при получении данных', details: err.message || err });
   }
 };
